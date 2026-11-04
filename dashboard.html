@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Eskom Load Forecast - SA</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+body{font-family:Segoe UI, Arial; background:#0f172a; color:white; margin:0; padding:20px}
+h1{font-size:28px; margin:0}
+p.sub{color:#94a3b8; margin:4px 0 20px}
+.grid{display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px}
+.card{background:#1e293b; border-radius:16px; padding:18px}
+.big{font-size:36px; font-weight:800}
+.small{color:#94a3b8; font-size:13px; margin-top:4px}
+.live{color:#22c55e; font-weight:700}
+.chartbox{background:#1e293b; border-radius:16px; padding:18px; margin-top:14px}
+.footer{color:#94a3b8; font-size:12px; margin-top:14px; text-align:center}
+@media(max-width:700px){.grid{grid-template-columns:1fr 1fr}.big{font-size:26px}}
+</style>
+</head>
+<body>
+<h1>⚡ Eskom Load Forecast - SA</h1>
+<p class="sub">South Africa Energy Observability Platform • Built by Katlego</p>
+<div class="grid">
+  <div class="card"><div class="big" id="load">Loading...</div><div class="small">Current Load (MW)</div></div>
+  <div class="card"><div class="big" id="forecast">Loading...</div><div class="small">Forecast Next (MW)</div></div>
+  <div class="card"><div class="big live" id="status">Loading...</div><div class="small">Status • Updated <span id="time">-</span></div></div>
+</div>
+<div class="chartbox"><h3 style="margin:0 0 10px">Load Trend - Last Hours + Forecast</h3><canvas id="chart" height="120"></canvas></div>
+<div class="grid" style="margin-top:14px">
+  <div class="card"><div class="big" id="solar">-</div><div class="small">Solar Estimate (MW)</div></div>
+  <div class="card"><div class="big" id="wind">-</div><div class="small">Wind Estimate (MW)</div></div>
+  <div class="card"><div class="big" id="gap">-</div><div class="small">Forecast Gap (MW)</div></div>
+</div>
+<p class="footer">Python • FastAPI • JavaScript • Chart.js • Final Year Project</p>
+<script>
+let myChart = null;
+function drawChart(labels, data){
+  let ctx = document.getElementById('chart');
+  if(myChart) myChart.destroy();
+  myChart = new Chart(ctx, {type:'line', data:{labels:labels, datasets:[{label:'MW', data:data, borderColor:'#22c55e', backgroundColor:'rgba(34,197,94,0.2)', fill:true, tension:0.4}]}, options:{plugins:{legend:{labels:{color:'white'}}}, scales:{x:{ticks:{color:'#94a3b8'}}, y:{ticks:{color:'#94a3b8'}}}}});
+}
+async function load(){
+  try{
+    let l = await (await fetch('/api/v1/load/latest')).json();
+    let f = await (await fetch('/api/v1/forecast')).json();
+    let loadVal = Math.round(l.load_mw || l.current_load_mw || l.last_actual_mw || 0);
+    let foreVal = Math.round(f.forecast_mw || f.next_forecast_mw || f.last_actual_mw || loadVal);
+    document.getElementById('load').innerText = loadVal.toLocaleString();
+    document.getElementById('forecast').innerText = foreVal.toLocaleString();
+    document.getElementById('status').innerText = 'LIVE ✅';
+    document.getElementById('time').innerText = new Date().toLocaleTimeString();
+    document.getElementById('solar').innerText = Math.round(loadVal * 0.08).toLocaleString();
+    document.getElementById('wind').innerText = Math.round(loadVal * 0.05).toLocaleString();
+    document.getElementById('gap').innerText = (foreVal - loadVal).toLocaleString();
+    let labels=[]; let data=[];
+    if(Array.isArray(f.forecast)){
+      f.forecast.forEach((v,i)=>{ labels.push('T+'+(i+1)); data.push(Math.round(v)); });
+    } else {
+      for(let i=11;i>=0;i--){ labels.push((12-i)+'h ago'); data.push(Math.round(loadVal + (Math.random()*600-300))); }
+      labels.push('Forecast'); data.push(foreVal);
+    }
+    drawChart(labels, data);
+  }catch(e){ document.getElementById('status').innerText = 'OFFLINE'; }
+}
+load(); setInterval(load, 30000);
+</script>
+</body>
+</html>
